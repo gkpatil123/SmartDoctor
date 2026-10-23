@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Search, 
@@ -11,38 +11,68 @@ import {
   ShieldCheck,
   ChevronRight
 } from 'lucide-react';
+import { api } from '../services/api';
 
 export const PatientsView = ({ appointments = [], onOpenBookModal, setActiveTab }) => {
   const [search, setSearch] = useState('');
+  const [dbPatients, setDbPatients] = useState([]);
 
-  // Extract unique patients from appointments + simulated default patient records
-  const patientMap = new Map();
+  useEffect(() => {
+    loadPatients();
+  }, [appointments]);
 
-  appointments.forEach((appt) => {
-    const key = appt.patient_phone || appt.patient_name || 'unknown';
-    if (!patientMap.has(key)) {
-      patientMap.set(key, {
-        id: appt.patient_id || `pat-${key}`,
-        name: appt.patient_name || 'Walk-in Patient',
-        phone: appt.patient_phone || 'N/A',
-        appointmentsCount: 1,
-        lastAppointment: appt.date,
-        lastStatus: appt.status,
-        notes: appt.notes || 'General consultation'
-      });
-    } else {
-      const existing = patientMap.get(key);
-      existing.appointmentsCount += 1;
-      if (new Date(appt.date) > new Date(existing.lastAppointment)) {
-        existing.lastAppointment = appt.date;
-        existing.lastStatus = appt.status;
+  const loadPatients = async () => {
+    try {
+      const data = await api.getPatients();
+      if (Array.isArray(data)) {
+        setDbPatients(data);
       }
+    } catch (e) {
+      console.warn("Failed to load patients", e);
     }
-  });
+  };
 
-  const patientsList = Array.from(patientMap.values()).filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    p.phone.includes(search)
+  // Build patient list from DB patients, falling back to appointments
+  let list = [];
+  if (dbPatients.length > 0) {
+    list = dbPatients.map(p => ({
+      id: p.id,
+      name: p.name,
+      phone: p.phone,
+      appointmentsCount: p.appointments_count || 0,
+      lastAppointment: p.last_appointment || 'No visits yet',
+      lastStatus: p.last_status || 'registered',
+      notes: 'Registered patient'
+    }));
+  } else {
+    const patientMap = new Map();
+    appointments.forEach((appt) => {
+      const key = appt.patient_phone || appt.patient_name || 'unknown';
+      if (!patientMap.has(key)) {
+        patientMap.set(key, {
+          id: appt.patient_id || `pat-${key}`,
+          name: appt.patient_name || 'Walk-in Patient',
+          phone: appt.patient_phone || 'N/A',
+          appointmentsCount: 1,
+          lastAppointment: appt.date,
+          lastStatus: appt.status,
+          notes: appt.notes || 'General consultation'
+        });
+      } else {
+        const existing = patientMap.get(key);
+        existing.appointmentsCount += 1;
+        if (new Date(appt.date) > new Date(existing.lastAppointment)) {
+          existing.lastAppointment = appt.date;
+          existing.lastStatus = appt.status;
+        }
+      }
+    });
+    list = Array.from(patientMap.values());
+  }
+
+  const patientsList = list.filter(p => 
+    (p.name || '').toLowerCase().includes(search.toLowerCase()) || 
+    (p.phone || '').includes(search)
   );
 
   return (

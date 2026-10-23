@@ -15,6 +15,7 @@ import { CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 export function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [appointments, setAppointments] = useState([]);
+  const [doctor, setDoctor] = useState(null);
   const [healthStatus, setHealthStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,31 +32,43 @@ export function App() {
   };
 
   useEffect(() => {
-    loadData();
+    // Initial load
+    loadData(true);
+
+    // Real-time synchronization loop: polling every 3s keeps user and doctor sides in sync
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        loadData(false);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
-      const [appts, health] = await Promise.all([
+      const [appts, health, doc] = await Promise.all([
         api.getAppointments(),
-        api.checkHealth()
+        api.checkHealth(),
+        api.getDoctor()
       ]);
       setAppointments(appts || []);
       setHealthStatus(health);
+      if (doc) setDoctor(doc);
     } catch (e) {
       console.error("Error loading clinic data", e);
     }
-    setLoading(false);
+    if (isInitial) setLoading(false);
   };
 
   const handleBookSuccess = (newAppt) => {
-    setAppointments(prev => [newAppt, ...prev]);
+    loadData(false);
     showToast(`Appointment confirmed for ${newAppt.patient_name} on ${newAppt.date}!`);
   };
 
   const handleRescheduleSuccess = (updated) => {
-    setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
+    loadData(false);
     showToast(`Appointment rescheduled to ${updated.date} at ${updated.start_time}!`);
   };
 
@@ -63,7 +76,7 @@ export function App() {
     if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
     try {
       const updated = await api.updateAppointment(id, { status: 'cancelled' });
-      setAppointments(prev => prev.map(a => a.id === id ? updated : a));
+      loadData(false);
       showToast("Appointment has been cancelled.", 'info');
     } catch (e) {
       showToast("Failed to cancel appointment", 'error');
@@ -91,6 +104,7 @@ export function App() {
         setActiveTab={setActiveTab}
         onOpenBookModal={() => setIsBookModalOpen(true)}
         whatsappMode={healthStatus?.whatsapp_mode || 'demo'}
+        doctor={doctor}
       />
 
       {/* Main Content Area */}
@@ -99,13 +113,15 @@ export function App() {
           activeTab={activeTab}
           onOpenBookModal={() => setIsBookModalOpen(true)}
           healthStatus={healthStatus}
-          onRefresh={loadData}
+          onRefresh={() => loadData(false)}
+          doctor={doctor}
         />
 
         <main style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'overview' && (
             <OverviewView
               appointments={appointments}
+              doctor={doctor}
               onOpenBookModal={() => setIsBookModalOpen(true)}
               onReschedule={openRescheduleModal}
               onCancel={handleCancelAppointment}
@@ -116,6 +132,7 @@ export function App() {
           {activeTab === 'appointments' && (
             <AppointmentsView
               appointments={appointments}
+              doctor={doctor}
               onOpenBookModal={() => setIsBookModalOpen(true)}
               onReschedule={openRescheduleModal}
               onCancel={handleCancelAppointment}
@@ -123,7 +140,10 @@ export function App() {
           )}
 
           {activeTab === 'schedule' && (
-            <ScheduleView />
+            <ScheduleView 
+              doctor={doctor} 
+              onScheduleUpdated={() => loadData(false)}
+            />
           )}
 
           {activeTab === 'patients' && (
@@ -135,7 +155,10 @@ export function App() {
           )}
 
           {activeTab === 'whatsapp-sim' && (
-            <WhatsAppSimulatorView onAppointmentBooked={loadData} />
+            <WhatsAppSimulatorView 
+              doctor={doctor}
+              onAppointmentBooked={() => loadData(false)} 
+            />
           )}
 
           {activeTab === 'whatsapp-setup' && (
@@ -147,6 +170,7 @@ export function App() {
       {/* Book Appointment Modal */}
       <BookModal
         isOpen={isBookModalOpen}
+        doctor={doctor}
         onClose={() => setIsBookModalOpen(false)}
         onBookSuccess={handleBookSuccess}
       />
@@ -154,6 +178,7 @@ export function App() {
       {/* Reschedule Modal */}
       <RescheduleModal
         isOpen={rescheduleData.isOpen}
+        doctor={doctor}
         appointment={rescheduleData.appointment}
         onClose={() => setRescheduleData({ isOpen: false, appointment: null })}
         onRescheduleSuccess={handleRescheduleSuccess}

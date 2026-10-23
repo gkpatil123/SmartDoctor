@@ -17,6 +17,7 @@ import {
 
 export const OverviewView = ({ 
   appointments = [], 
+  doctor = null,
   onOpenBookModal, 
   onReschedule, 
   onCancel, 
@@ -65,8 +66,8 @@ export const OverviewView = ({
     },
     {
       title: "Registered Patients",
-      value: Math.max(uniquePatients, 12),
-      subValue: "+4 New this week",
+      value: uniquePatients,
+      subValue: `${uniquePatients} in system`,
       icon: Users,
       glow: 'emerald',
       color: 'var(--emerald-bright)',
@@ -312,8 +313,12 @@ export const OverviewView = ({
                 👨‍⚕️
               </div>
               <div>
-                <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#FFFFFF' }}>Dr. Sameer Kulkarni</h4>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>MD Medicine • Chief Physician</p>
+                <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#FFFFFF' }}>
+                  {doctor?.name || 'Dr. Sameer Kulkarni'}
+                </h4>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  {doctor?.specialization || 'Consultant Physician & Diabetologist'}
+                </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                   <span style={{
                     width: '7px',

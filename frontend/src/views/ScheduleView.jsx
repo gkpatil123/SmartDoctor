@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -11,12 +11,14 @@ import {
   Settings,
   Sparkles
 } from 'lucide-react';
+import { api } from '../services/api';
 
-export const ScheduleView = () => {
+export const ScheduleView = ({ doctor = null, onScheduleUpdated = null }) => {
   const [slotDuration, setSlotDuration] = useState('30');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const [weeklySchedule, setWeeklySchedule] = useState([
+  const defaultDays = [
     { day: 'Monday', dayIndex: 0, active: true, startTime: '09:00', endTime: '17:00' },
     { day: 'Tuesday', dayIndex: 1, active: true, startTime: '09:00', endTime: '17:00' },
     { day: 'Wednesday', dayIndex: 2, active: true, startTime: '09:00', endTime: '17:00' },
@@ -24,7 +26,9 @@ export const ScheduleView = () => {
     { day: 'Friday', dayIndex: 4, active: true, startTime: '09:00', endTime: '17:00' },
     { day: 'Saturday', dayIndex: 5, active: true, startTime: '09:00', endTime: '14:00' },
     { day: 'Sunday', dayIndex: 6, active: false, startTime: '09:00', endTime: '13:00' }
-  ]);
+  ];
+
+  const [weeklySchedule, setWeeklySchedule] = useState(defaultDays);
 
   const [holidays, setHolidays] = useState([
     { id: 1, date: '2026-11-04', reason: 'Diwali Festive Holiday' },
@@ -33,6 +37,33 @@ export const ScheduleView = () => {
 
   const [newHolidayDate, setNewHolidayDate] = useState('');
   const [newHolidayReason, setNewHolidayReason] = useState('');
+
+  useEffect(() => {
+    loadBackendSchedule();
+  }, [doctor]);
+
+  const loadBackendSchedule = async () => {
+    try {
+      const docId = doctor?.id || 'doc-default';
+      const remote = await api.getSchedules(docId);
+      if (Array.isArray(remote) && remote.length > 0) {
+        setWeeklySchedule(prev => prev.map(item => {
+          const match = remote.find(r => r.day_of_week === item.dayIndex);
+          if (match) {
+            return {
+              ...item,
+              active: match.is_active,
+              startTime: match.start_time.slice(0, 5),
+              endTime: match.end_time.slice(0, 5)
+            };
+          }
+          return item;
+        }));
+      }
+    } catch (e) {
+      console.warn("Failed to load doctor schedule", e);
+    }
+  };
 
   const toggleDay = (index) => {
     const updated = [...weeklySchedule];
@@ -46,9 +77,25 @@ export const ScheduleView = () => {
     setWeeklySchedule(updated);
   };
 
-  const handleSave = () => {
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const docId = doctor?.id || 'doc-default';
+      const payload = weeklySchedule.map(s => ({
+        day_of_week: s.dayIndex,
+        start_time: s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime,
+        end_time: s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime,
+        is_active: s.active
+      }));
+      await api.updateSchedules(docId, payload);
+      setSavedSuccess(true);
+      if (onScheduleUpdated) onScheduleUpdated();
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (e) {
+      console.error("Failed to save schedule:", e);
+      alert("Error saving schedule: " + e.message);
+    }
+    setSaving(false);
   };
 
   const addHoliday = (e) => {
@@ -83,7 +130,7 @@ export const ScheduleView = () => {
             <span>Clinic Timetable & Slots Engine</span>
           </div>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '700', color: '#FFFFFF', marginTop: '4px' }}>
-            Dr. Sameer Kulkarni — Schedule Configuration
+            {doctor?.name || 'Dr. Sameer Kulkarni'} — Schedule Configuration
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
             Adjust doctor consultation hours, break periods, and appointment slot granularity.

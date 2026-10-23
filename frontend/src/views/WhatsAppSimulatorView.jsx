@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 
-export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
+export const WhatsAppSimulatorView = ({ onAppointmentBooked, doctor = null }) => {
   const [patientPhone, setPatientPhone] = useState('+919876543210');
   const [patientName, setPatientName] = useState('Rahul Sharma');
   const [messages, setMessages] = useState([]);
@@ -35,6 +35,9 @@ export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
 
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  const activeDocName = doctor?.name || 'Dr. Sameer Kulkarni';
+  const activeClinicName = doctor?.clinic_name || 'SmartDoctor Clinic';
 
   // Helper to extract buttons for a bot reply
   const extractInteractiveButtons = (msgText, state) => {
@@ -87,9 +90,7 @@ export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
       state === 'ask_name'
     ) {
       return [
-        { text: patientName || 'Rahul Sharma', label: `👤 Send My Name: "${patientName || 'Rahul Sharma'}"`, isPrimary: true },
-        { text: 'Priya Verma', label: '👤 Send: "Priya Verma"' },
-        { text: 'Amit Patel', label: '👤 Send: "Amit Patel"' }
+        { text: patientName || 'Rahul Sharma', label: `👤 Send My Name: "${patientName || 'Rahul Sharma'}"`, isPrimary: true }
       ];
     }
 
@@ -201,8 +202,8 @@ export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
         {
           id: 1,
           sender: 'doctor',
-          doctorName: 'Dr. Sameer Kulkarni',
-          clinicName: 'SmartDoctor Clinic',
+          doctorName: activeDocName,
+          clinicName: activeClinicName,
           text: replyText,
           state: initialState,
           options: extractInteractiveButtons(replyText, initialState),
@@ -212,13 +213,13 @@ export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
       setCurrentState(initialState);
     } catch (e) {
       setIsTyping(false);
-      const fallbackText = "👋 Welcome to SmartDoctor Clinic!\n\nChoose your language / भाषा चुनें / भाषा निवडा:\n1️⃣ English\n2️⃣ हिंदी\n3️⃣ मराठी";
+      const fallbackText = `👋 Welcome to ${activeClinicName}!\n\nChoose your language / भाषा चुनें / भाषा निवडा:\n1️⃣ English\n2️⃣ हिंदी\n3️⃣ मराठी`;
       setMessages([
         {
           id: 1,
           sender: 'doctor',
-          doctorName: 'Dr. Sameer Kulkarni',
-          clinicName: 'SmartDoctor Clinic',
+          doctorName: activeDocName,
+          clinicName: activeClinicName,
           text: fallbackText,
           state: 'language_select',
           options: [
@@ -270,8 +271,8 @@ export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
         const botMsg = {
           id: Date.now() + 1,
           sender: 'doctor',
-          doctorName: 'Dr. Sameer Kulkarni',
-          clinicName: 'SmartDoctor Clinic',
+          doctorName: activeDocName,
+          clinicName: activeClinicName,
           text: replyText,
           state: newState,
           options: extractInteractiveButtons(replyText, newState),
@@ -286,8 +287,15 @@ export const WhatsAppSimulatorView = ({ onAppointmentBooked }) => {
           setPatientName(textToSend);
         }
 
-        // Notify parent if appointment was created
-        if (replyText.includes('Appointment confirmed') || replyText.includes('अपॉइंटमेंट पुष्टि')) {
+        // Notify parent if appointment was created, cancelled, or rescheduled
+        const lowerReply = replyText.toLowerCase();
+        if (
+          lowerReply.includes('confirmed') ||
+          lowerReply.includes('पुष्टि') ||
+          lowerReply.includes('cancelled') ||
+          lowerReply.includes('रद्द') ||
+          lowerReply.includes('rescheduled')
+        ) {
           if (onAppointmentBooked) onAppointmentBooked();
         }
       }, 500);

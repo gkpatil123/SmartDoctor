@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, User, Phone, FileText, CheckCircle2 } from 'lucide-react';
 import { api } from '../services/api';
 
-export const BookModal = ({ isOpen, onClose, onBookSuccess }) => {
+export const BookModal = ({ isOpen, onClose, onBookSuccess, doctor = null }) => {
   const [patientName, setPatientName] = useState('');
   const [patientPhone, setPatientPhone] = useState('+91');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -13,20 +13,22 @@ export const BookModal = ({ isOpen, onClose, onBookSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const docId = doctor?.id || 'doc-default';
+
   useEffect(() => {
     if (isOpen) {
       loadSlots(date);
     }
-  }, [isOpen, date]);
+  }, [isOpen, date, docId]);
 
   const loadSlots = async (targetDate) => {
     setLoadingSlots(true);
     setSelectedSlot(null);
     try {
-      const data = await api.getSlots('doc-1', targetDate);
-      setSlots(data);
+      const data = await api.getSlots(docId, targetDate);
+      setSlots(data || []);
     } catch (e) {
-      // ignore
+      console.warn("Error loading slots:", e);
     }
     setLoadingSlots(false);
   };
@@ -53,7 +55,7 @@ export const BookModal = ({ isOpen, onClose, onBookSuccess }) => {
       const newAppt = await api.createAppointment({
         patient_name: patientName,
         patient_phone: patientPhone,
-        doctor_id: 'doc-1',
+        doctor_id: docId,
         date: date,
         start_time: selectedSlot.start_time,
         notes: notes || 'Clinic appointment'
@@ -102,7 +104,7 @@ export const BookModal = ({ isOpen, onClose, onBookSuccess }) => {
               Schedule Clinic Appointment
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-              Dr. Sameer Kulkarni (MD Medicine) • OPD Room 102
+              {doctor?.name || 'Dr. Sameer Kulkarni'} ({doctor?.specialization || 'MD Medicine'}) • OPD Room 102
             </p>
           </div>
           <button

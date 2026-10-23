@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 
-export const RescheduleModal = ({ isOpen, appointment, onClose, onRescheduleSuccess }) => {
+export const RescheduleModal = ({ isOpen, appointment, onClose, onRescheduleSuccess, doctor = null }) => {
   const [newDate, setNewDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const docId = doctor?.id || appointment?.doctor_id || 'doc-default';
 
   useEffect(() => {
     if (appointment) {
@@ -20,16 +22,16 @@ export const RescheduleModal = ({ isOpen, appointment, onClose, onRescheduleSucc
     if (newDate && isOpen) {
       loadSlots(newDate);
     }
-  }, [newDate, isOpen]);
+  }, [newDate, isOpen, docId]);
 
   const loadSlots = async (targetDate) => {
     setLoading(true);
     setSelectedSlot(null);
     try {
-      const data = await api.getSlots('doc-1', targetDate);
-      setSlots(data);
+      const data = await api.getSlots(docId, targetDate);
+      setSlots(data || []);
     } catch (e) {
-      // ignore
+      console.warn("Failed to load reschedule slots:", e);
     }
     setLoading(false);
   };

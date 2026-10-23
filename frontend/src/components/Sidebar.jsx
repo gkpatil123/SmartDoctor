@@ -13,7 +13,7 @@ import {
   Activity
 } from 'lucide-react';
 
-export const Sidebar = ({ activeTab, setActiveTab, onOpenBookModal, whatsappMode = 'demo' }) => {
+export const Sidebar = ({ activeTab, setActiveTab, onOpenBookModal, whatsappMode = 'demo', doctor = null }) => {
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'appointments', label: 'Appointments', icon: CalendarDays },
@@ -209,10 +209,12 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenBookModal, whatsappMode
             fontSize: '13px',
             color: '#FFFFFF'
           }}>
-            SK
+            {(doctor?.name || 'Dr. Sameer').split(' ').map(n => n[0]).join('').slice(0, 2)}
           </div>
           <div>
-            <div style={{ fontSize: '13px', fontWeight: '600', color: '#FFFFFF' }}>Dr. Sameer K.</div>
+            <div style={{ fontSize: '13px', fontWeight: '600', color: '#FFFFFF' }}>
+              {doctor?.name || 'Dr. Sameer K.'}
+            </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Admin / Consultant</div>
           </div>
         </div>
