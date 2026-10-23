@@ -1,0 +1,12 @@
+{
+  "name": "smartdoctor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartDoctor - AI Clinic Appointment Booking & WhatsApp Automation",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run dev",
+    "frontend": "npm --prefix frontend run dev"
+  }
+}
