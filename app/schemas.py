@@ -165,3 +165,28 @@ class HealthResponse(BaseModel):
     database: str
     whatsapp_mode: str
     timestamp: datetime.datetime
+
+
+# ---------------------------------------------------------------------------
+# Doctor & Patient
+# ---------------------------------------------------------------------------
+class DoctorOut(BaseModel):
+    id: str
+    name: str
+    specialization: Optional[str] = None
+    clinic_name: Optional[str] = None
+    clinic_address: Optional[str] = None
+    clinic_phone: Optional[str] = None
+    consultation_duration_min: int = 30
+
+
+class PatientOut(BaseModel):
+    id: str
+    name: str
+    phone: str
+    language: str = "en"
+    created_at: Optional[datetime.datetime] = None
+    appointments_count: int = 0
+    last_appointment: Optional[datetime.date] = None
+    last_status: Optional[str] = None
+

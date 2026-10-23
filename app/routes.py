@@ -15,8 +15,10 @@ from app.schemas import (
     AppointmentCreate,
     AppointmentOut,
     AppointmentUpdate,
+    DoctorOut,
     HealthResponse,
     LoginRequest,
+    PatientOut,
     ScheduleOut,
     ScheduleUpdate,
     SlotOut,
@@ -68,6 +70,60 @@ def health_check(db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Doctor & Clinic Info
+# ---------------------------------------------------------------------------
+@router.get("/api/doctor", response_model=DoctorOut, tags=["Doctor"])
+def get_primary_doctor(db: Session = Depends(get_db)):
+    doc = booking.get_doctor(db, "doc-default")
+    if not doc:
+        doc = booking.seed_default_doctor(db)
+    return DoctorOut(
+        id=doc.id,
+        name=doc.name,
+        specialization=doc.specialization,
+        clinic_name=doc.clinic_name,
+        clinic_address=doc.clinic_address,
+        clinic_phone=doc.clinic_phone,
+        consultation_duration_min=doc.consultation_duration_min,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Patients
+# ---------------------------------------------------------------------------
+@router.get("/api/patients", response_model=list[PatientOut], tags=["Patients"])
+def list_patients(
+    db: Session = Depends(get_db),
+    _token: str = Depends(require_admin),
+):
+    from app.models import Appointment, Patient
+
+    patients = db.query(Patient).order_by(Patient.created_at.desc()).all()
+    results = []
+    for p in patients:
+        appts = (
+            db.query(Appointment)
+            .filter(Appointment.patient_id == p.id)
+            .order_by(Appointment.date.desc(), Appointment.start_time.desc())
+            .all()
+        )
+        last_appt = appts[0] if appts else None
+        results.append(
+            PatientOut(
+                id=p.id,
+                name=p.name,
+                phone=p.phone,
+                language=p.language or "en",
+                created_at=p.created_at,
+                appointments_count=len(appts),
+                last_appointment=last_appt.date if last_appt else None,
+                last_status=last_appt.status if last_appt else None,
+            )
+        )
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Slots
 # ---------------------------------------------------------------------------
 @router.get("/api/slots", response_model=list[SlotOut], tags=["Slots"])
@@ -76,11 +132,10 @@ def get_slots(
     date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format"),
     db: Session = Depends(get_db),
 ):
-    doctors = booking.get_doctors(db)
-    if not doctors:
-        return []
-
-    doc_id = doctor_id or doctors[0].id
+    doc = booking.get_doctor(db, doctor_id)
+    if not doc:
+        doc = booking.seed_default_doctor(db)
+    doc_id = doc.id
 
     if date:
         try:
@@ -174,12 +229,14 @@ def create_appointment(
     db: Session = Depends(get_db),
     _token: str = Depends(require_admin),
 ):
+    doc = booking.get_doctor(db, req.doctor_id)
+    real_doc_id = doc.id if doc else req.doctor_id
     try:
         appt = booking.create_appointment(
             db=db,
             patient_name=req.patient_name,
             patient_phone=req.patient_phone,
-            doctor_id=req.doctor_id,
+            doctor_id=real_doc_id,
             date=req.date,
             start_time=req.start_time,
             notes=req.notes or "",
@@ -265,7 +322,7 @@ def get_schedules(
     doctor = booking.get_doctor(db, doctor_id)
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
-    return booking.get_schedules(db, doctor_id)
+    return booking.get_schedules(db, doctor.id)
 
 
 @router.put("/api/schedules/{doctor_id}", response_model=list[ScheduleOut], tags=["Schedules"])
@@ -280,7 +337,7 @@ def update_schedules(
         raise HTTPException(status_code=404, detail="Doctor not found")
 
     items = [s.model_dump() for s in req.schedules]
-    schedules = booking.update_schedules(db, doctor_id, items)
+    schedules = booking.update_schedules(db, doctor.id, items)
     return schedules
 
 

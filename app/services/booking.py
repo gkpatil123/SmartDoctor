@@ -63,21 +63,36 @@ def get_doctors(db: Session) -> list[Doctor]:
 
 
 def get_doctor(db: Session, doctor_id: str) -> Optional[Doctor]:
-    return db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doctor_id or doctor_id in ("doc-1", "doc-default"):
+        doc = db.query(Doctor).first()
+        if doc:
+            return doc
+    doc = db.query(Doctor).filter(Doctor.id == doctor_id).first()
+    if not doc:
+        doc = db.query(Doctor).first()
+    return doc
 
 
 def seed_default_doctor(db: Session) -> Doctor:
-    """Ensure at least one doctor exists for demo purposes."""
-    existing = db.query(Doctor).first()
-    if existing:
-        return existing
+    """Ensure default doctor Dr. Sameer Kulkarni exists."""
+    doc = db.query(Doctor).first()
+    if doc:
+        if doc.name == "Dr. Sharma":
+            doc.name = "Dr. Sameer Kulkarni"
+            doc.specialization = "Consultant Physician & Diabetologist"
+            doc.clinic_name = config.CLINIC_NAME
+            doc.clinic_address = "Suite 102, Metro Health Park, FC Road, Pune"
+            doc.clinic_phone = "+91 98765 43210"
+            db.commit()
+            db.refresh(doc)
+        return doc
     doc = Doctor(
         id="doc-default",
-        name="Dr. Sharma",
-        specialization="General Physician",
+        name="Dr. Sameer Kulkarni",
+        specialization="Consultant Physician & Diabetologist",
         clinic_name=config.CLINIC_NAME,
-        clinic_address="123 Health Street, Pune, Maharashtra",
-        clinic_phone=config.CLINIC_PHONE,
+        clinic_address="Suite 102, Metro Health Park, FC Road, Pune",
+        clinic_phone="+91 98765 43210",
         consultation_duration_min=30,
     )
     db.add(doc)
@@ -85,6 +100,68 @@ def seed_default_doctor(db: Session) -> Doctor:
     db.refresh(doc)
     _audit(db, "doctor_created", f"Seeded default doctor: {doc.name}")
     return doc
+
+
+def seed_default_patient(db: Session, doctor_id: str) -> Patient:
+    """Ensure exactly one initial seed patient exists."""
+    patient = db.query(Patient).filter(Patient.phone == "+919876543210").first()
+    if not patient:
+        # Check if any patient exists
+        any_patient = db.query(Patient).first()
+        if any_patient:
+            any_patient.name = "Rahul Sharma"
+            any_patient.phone = "+919876543210"
+            db.commit()
+            db.refresh(any_patient)
+            patient = any_patient
+        else:
+            patient = Patient(
+                name="Rahul Sharma",
+                phone="+919876543210",
+                language="en",
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+    else:
+        patient.name = "Rahul Sharma"
+        db.commit()
+
+    # Ensure there is 1 active confirmed appointment for demonstration
+    today = _today()
+    confirmed = (
+        db.query(Appointment)
+        .filter(Appointment.patient_id == patient.id, Appointment.status == "confirmed")
+        .first()
+    )
+    if not confirmed:
+        # Check if slot 10:00 is taken
+        existing_slot = (
+            db.query(Appointment)
+            .filter(
+                Appointment.doctor_id == doctor_id,
+                Appointment.date == today,
+                Appointment.start_time == datetime.time(10, 0),
+            )
+            .first()
+        )
+        if not existing_slot:
+            appt = Appointment(
+                patient_id=patient.id,
+                doctor_id=doctor_id,
+                date=today,
+                start_time=datetime.time(10, 0),
+                end_time=datetime.time(10, 30),
+                status="confirmed",
+                notes="General health checkup & review",
+            )
+            db.add(appt)
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+
+    return patient
 
 
 def seed_default_schedule(db: Session, doctor_id: str) -> None:
@@ -226,14 +303,16 @@ def generate_slots(
     if not doctor:
         return []
 
-    if _is_holiday(db, doctor_id, date):
+    real_doc_id = doctor.id
+
+    if _is_holiday(db, real_doc_id, date):
         return []
 
     dow = date.weekday()  # 0=Monday
     schedules = (
         db.query(Schedule)
         .filter(
-            Schedule.doctor_id == doctor_id,
+            Schedule.doctor_id == real_doc_id,
             Schedule.day_of_week == dow,
             Schedule.is_active == True,
         )
@@ -258,8 +337,8 @@ def generate_slots(
                 current_dt += duration
                 continue
 
-            booked = _is_slot_booked(db, doctor_id, date, slot_start)
-            blocked = _is_slot_blocked(db, doctor_id, date, slot_start, slot_end)
+            booked = _is_slot_booked(db, real_doc_id, date, slot_start)
+            blocked = _is_slot_blocked(db, real_doc_id, date, slot_start, slot_end)
 
             slots.append(
                 {

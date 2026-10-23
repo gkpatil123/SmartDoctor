@@ -11,7 +11,11 @@ from app import config
 from app.database import SessionLocal, engine
 from app.models import Base
 from app.routes import router
-from app.services.booking import seed_default_doctor, seed_default_schedule
+from app.services.booking import (
+    seed_default_doctor,
+    seed_default_patient,
+    seed_default_schedule,
+)
 
 # Configure logging (no secrets in logs)
 logging.basicConfig(
@@ -47,6 +51,7 @@ def startup():
     try:
         doctor = seed_default_doctor(db)
         seed_default_schedule(db, doctor.id)
+        seed_default_patient(db, doctor.id)
     finally:
         db.close()
     logging.info(
